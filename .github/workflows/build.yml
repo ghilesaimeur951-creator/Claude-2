@@ -46,6 +46,27 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug assembleRelease --stacktrace
 
+      - name: Notes de version
+        run: |
+          {
+            echo "APK Android prêt à installer."
+            echo "- **StreetBlocks.apk** : version optimisée (recommandée)"
+            echo "- **StreetBlocks-debug.apk** : version de diagnostic (s'installe à côté)"
+            echo
+            echo "### Tests"
+            for f in app/build/test-results/testDebugUnitTest/*.xml; do
+              n=$(grep -o 'tests="[0-9]*"' "$f" | head -1); fl=$(grep -o 'failures="[0-9]*"' "$f" | head -1); e=$(grep -o 'errors="[0-9]*"' "$f" | head -1)
+              echo "- $(basename "$f" .xml | sed 's/TEST-//') : $n $fl $e"
+            done
+            echo
+            echo "<details><summary>Schéma de base (v2)</summary>"
+            echo
+            grep -o '"createSql": "[^"]*"' app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json | sed 's/^/    /'
+            echo
+            echo "</details>"
+          } > release-notes.md
+          cat release-notes.md
+
       - name: Préparer les fichiers
         run: |
           mkdir -p out
@@ -65,9 +86,6 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           name: Street Blocks v1.0.${{ github.run_number }}
-          body: |
-            APK Android prêt à installer.
-            - **StreetBlocks.apk** : version optimisée (recommandée)
-            - **StreetBlocks-debug.apk** : version de diagnostic (s'installe à côté)
+          body_path: release-notes.md
           files: out/*.apk
           make_latest: true
