@@ -1,0 +1,53 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compiler l'APK (debug + release)
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug assembleRelease --stacktrace
+
+      - name: Préparer les fichiers
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/StreetBlocks.apk
+          cp app/build/outputs/apk/debug/app-debug.apk out/StreetBlocks-debug.apk
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StreetBlocks-apk
+          path: out/*.apk
+
+      - name: Publier la release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Street Blocks v1.0.${{ github.run_number }}
+          body: |
+            APK Android prêt à installer.
+            - **StreetBlocks.apk** : version optimisée (recommandée)
+            - **StreetBlocks-debug.apk** : version de diagnostic (s'installe à côté)
+          files: out/*.apk
+          make_latest: true
