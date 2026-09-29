@@ -29,7 +29,8 @@ jobs:
 
       - name: Schéma de base de données exporté
         if: always()
-        run: cat app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json | grep -o '"createSql": "[^"]*"' || true
+        run: |
+          grep -o '"createSql": "[^"]*"' app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json || true
 
       - name: Rapport de tests
         if: failure()
