@@ -155,7 +155,7 @@ fun ChipGroup(items: List<ChipItem>, selected: String?, onSelect: (String) -> Un
                 onClick = { onSelect(item.key) },
                 label = { Text(item.label) },
                 leadingIcon = item.dot?.let { c ->
-                    {
+                    @Composable {
                         Box(
                             Modifier.size(14.dp).background(c, CircleShape)
                                 .border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape)
