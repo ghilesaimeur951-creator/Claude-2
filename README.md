@@ -44,6 +44,19 @@ Chaque push sur `main` recompile l'APK via GitHub Actions et publie une nouvelle
 - Annonces vocales en français (« Tractions. Série 2 sur 5. 10 répétitions, plus 15 kilos. C'est parti ! »)
 - La musique est baissée automatiquement pendant les annonces
 
+**Mes programmes**
+- Programmes sur 1 semaine, 2 semaines, 1 mois, 2 mois ou dates personnalisées, avec nom et objectif
+- Jours d'entraînement et de repos, horaires facultatifs, organisation hebdomadaire répétée sur toute la période
+  (ex. : lundi / mercredi / vendredi pendant deux mois, une séance différente par jour)
+- Chaque séance planifiée : nouvelle (éditeur de blocs), copie d'une séance sauvegardée ou d'un modèle
+- Chaque occurrence garde **sa propre configuration** : modifier la séance d'origine ne change pas le programme
+- Personnaliser une occurrence (exercices, séries, réps, charges, durées, repos), la déplacer, la reporter,
+  la dupliquer, dupliquer une semaine entière ou la répéter sur les semaines suivantes
+- À chaque modification : **« Uniquement cette séance »** ou **« Cette séance et les suivantes »** du même créneau
+- Les séances réalisées et leur historique ne sont jamais modifiés
+- Suivi : séances faites / sautées / en retard, pourcentage, prochaine séance, carte « Aujourd'hui » à l'accueil
+- La progression proposée en fin de séance s'applique aux prochaines séances du créneau dans le programme
+
 **Historique & progression**
 - Séances réalisées (complètes ou partielles), détail par exercice
 - Courbe de progression par exercice, record, suggestion « 5×6 ou 5×5 +12 kg »
@@ -68,10 +81,11 @@ La clé de signature `keystore/streetblocks.jks` est incluse pour que chaque nou
 app/src/main/java/com/streetblocks/app/
 ├── data/
 │   ├── model/        Block, Catalog (exercices, barres, prises), Equipment, Templates, Progression
-│   ├── db/           Room : séances, historique, élastiques
-│   └── Repositories  Séances, historique, réglages, matériel
+│   ├── db/           Room : séances, historique, élastiques, programmes (migration v1→v2 sans perte)
+│   ├── ProgramOps    Logique de planification (portée, déplacement, duplication, répétition)
+│   └── Repositories  Séances, programmes, historique, réglages, matériel
 ├── engine/           StepBuilder (blocs → étapes minutées), WorkoutEngine (exécution automatique)
 ├── audio/            AudioCues : bips synthétisés, voix, vibrations, volume
 ├── service/          WorkoutService (premier plan, wake lock, notifications plein écran)
-└── ui/               Compose : accueil, créateur, éditeur de bloc, matériel, séance, historique, réglages
+└── ui/               Compose : accueil, programmes, créateur, éditeur de bloc, matériel, séance, historique, réglages
 ```

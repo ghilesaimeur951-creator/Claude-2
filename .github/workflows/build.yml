@@ -27,11 +27,6 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Schéma de base de données exporté
-        if: always()
-        run: |
-          grep -o '"createSql": "[^"]*"' app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json || true
-
       - name: Rapport de tests et schéma
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,12 +53,6 @@ jobs:
               n=$(grep -o 'tests="[0-9]*"' "$f" | head -1); fl=$(grep -o 'failures="[0-9]*"' "$f" | head -1); e=$(grep -o 'errors="[0-9]*"' "$f" | head -1)
               echo "- $(basename "$f" .xml | sed 's/TEST-//') : $n $fl $e"
             done
-            echo
-            echo "<details><summary>Schéma de base (v2)</summary>"
-            echo
-            grep -o '"createSql": "[^"]*"' app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json | sed 's/^/    /'
-            echo
-            echo "</details>"
           } > release-notes.md
           cat release-notes.md
 
