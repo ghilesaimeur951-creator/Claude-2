@@ -119,6 +119,7 @@ data class SessionRecord(
     val durationSec: Int,
     val completed: Boolean,
     val logs: List<ExerciseLog>,
+    val plannedId: Long? = null,
 )
 
 fun kgLabel(d: Double): String =

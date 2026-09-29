@@ -27,6 +27,17 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest --stacktrace
 
+      - name: Schéma de base de données exporté
+        if: always()
+        run: cat app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json | grep -o '"createSql": "[^"]*"' || true
+
+      - name: Rapport de tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+
       - name: Compiler l'APK (debug + release)
         run: |
           chmod +x gradlew

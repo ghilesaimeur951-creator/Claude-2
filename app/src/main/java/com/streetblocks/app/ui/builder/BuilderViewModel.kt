@@ -18,7 +18,20 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class BuilderViewModel(val c: AppContainer, private val initialId: Long) : ViewModel() {
+/** Infos d'une séance planifiée en cours d'édition. */
+data class PlannedInfo(
+    val date: java.time.LocalDate,
+    val followingCount: Int,
+    val originalName: String,
+    val originalBlocks: List<Block>,
+    val done: Boolean,
+)
+
+/**
+ * Éditeur de blocs. Édite soit une séance sauvegardée ([planned] = false),
+ * soit UNE occurrence d'un programme ([planned] = true) qui garde sa propre copie des blocs.
+ */
+class BuilderViewModel(val c: AppContainer, private val initialId: Long, val planned: Boolean = false) : ViewModel() {
 
     private val _workout = MutableStateFlow<Workout?>(null)
     val workout: StateFlow<Workout?> = _workout.asStateFlow()
@@ -35,24 +48,57 @@ class BuilderViewModel(val c: AppContainer, private val initialId: Long) : ViewM
     private var saveJob: Job? = null
     private var dirty = false
 
+    private val _plannedInfo = MutableStateFlow<PlannedInfo?>(null)
+    val plannedInfo: StateFlow<PlannedInfo?> = _plannedInfo.asStateFlow()
+
     init {
         viewModelScope.launch {
-            val id = if (initialId == 0L) {
-                c.workouts.create("Nouvelle séance", listOf(Block.default(BlockType.WARMUP), Block.default(BlockType.END)))
-            } else initialId
-            _workout.value = c.workouts.get(id)
+            if (planned) {
+                val p = c.programs.getPlanned(initialId) ?: return@launch
+                _plannedInfo.value = PlannedInfo(p.date, c.programs.followingCount(p.id), p.name, p.blocks, !p.editable)
+                _workout.value = Workout(p.id, p.name, "", p.blocks, 0, 0, null)
+            } else {
+                val id = if (initialId == 0L) {
+                    c.workouts.create("Nouvelle séance", listOf(Block.default(BlockType.WARMUP), Block.default(BlockType.END)))
+                } else initialId
+                _workout.value = c.workouts.get(id)
+            }
+        }
+    }
+
+    private suspend fun persist(w: Workout) {
+        if (planned) c.programs.saveContent(w.id, w.name, w.blocks) else c.workouts.save(w)
+    }
+
+    /** La séance planifiée a-t-elle été modifiée depuis l'ouverture ? */
+    fun plannedChanged(): Boolean {
+        val info = _plannedInfo.value ?: return false
+        val w = _workout.value ?: return false
+        return w.name != info.originalName || w.blocks != info.originalBlocks
+    }
+
+    /** Enregistre, puis recopie éventuellement vers les séances suivantes du même créneau. */
+    fun finish(propagate: Boolean, then: () -> Unit) {
+        val w = _workout.value
+        saveJob?.cancel()
+        c.appScope.launch {
+            if (w != null) persist(w)
+            dirty = false
+            if (planned && propagate && w != null) c.programs.propagateContent(w.id)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { then() }
         }
     }
 
     private fun mutate(f: (Workout) -> Workout) {
         val w = _workout.value ?: return
+        if (_plannedInfo.value?.done == true) return // séance réalisée : lecture seule
         val n = f(w)
         _workout.value = n
         dirty = true
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(400)
-            c.workouts.save(n)
+            persist(n)
             dirty = false
         }
     }
@@ -120,14 +166,14 @@ class BuilderViewModel(val c: AppContainer, private val initialId: Long) : ViewM
     fun saveNow() {
         val w = _workout.value ?: return
         saveJob?.cancel()
-        c.appScope.launch { c.workouts.save(w) }
+        c.appScope.launch { persist(w) }
         dirty = false
     }
 
     override fun onCleared() {
         if (dirty) {
             val w = _workout.value
-            if (w != null) c.appScope.launch { c.workouts.save(w) }
+            if (w != null) c.appScope.launch { persist(w) }
         }
         super.onCleared()
     }

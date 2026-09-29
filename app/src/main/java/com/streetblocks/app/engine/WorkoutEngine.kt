@@ -6,6 +6,7 @@ import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.streetblocks.app.audio.AudioCues
 import com.streetblocks.app.audio.AudioCues.Cue
+import com.streetblocks.app.data.ProgramRepository
 import com.streetblocks.app.data.SessionRepository
 import com.streetblocks.app.data.WorkoutRepository
 import com.streetblocks.app.data.model.AppSettings
@@ -46,6 +47,8 @@ data class EngineState(
     val startedAt: Long = 0,
     val sessionId: Long = 0,
     val logs: List<ExerciseLog> = emptyList(),
+    /** Séance planifiée d'un programme (0 = séance libre) */
+    val plannedId: Long = 0,
 ) {
     val current: Step? get() = steps.getOrNull(index)
 
@@ -75,6 +78,7 @@ class WorkoutEngine(
     private val audio: AudioCues,
     private val workouts: WorkoutRepository,
     private val sessions: SessionRepository,
+    private val programs: ProgramRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(EngineState())
@@ -93,7 +97,7 @@ class WorkoutEngine(
     private var bands: List<Band> = emptyList()
     private val doneSets = HashMap<String, Int>()
 
-    fun start(workout: Workout, steps: List<Step>, s: AppSettings, bands: List<Band>) {
+    fun start(workout: Workout, steps: List<Step>, s: AppSettings, bands: List<Band>, plannedId: Long = 0) {
         stopLoop()
         settings = s
         blocks = workout.blocks
@@ -105,7 +109,7 @@ class WorkoutEngine(
         audio.beginSession()
         _state.value = EngineState(
             running = true, workoutId = workout.id, workoutName = workout.name, steps = steps,
-            index = 0, startedAt = System.currentTimeMillis(),
+            index = 0, startedAt = System.currentTimeMillis(), plannedId = plannedId,
         )
         enterStep(0, previous = null)
         loopJob = scope.launch { loop() }
@@ -283,8 +287,12 @@ class WorkoutEngine(
                     SessionRecord(
                         id = 0, workoutId = st.workoutId, workoutName = st.workoutName, startedAt = st.startedAt,
                         durationSec = duration, completed = completed, logs = logs,
+                        plannedId = st.plannedId.takeIf { it != 0L },
                     )
-                ).also { workouts.markPerformed(st.workoutId) }
+                ).also { sid ->
+                    if (st.workoutId != 0L) workouts.markPerformed(st.workoutId)
+                    if (st.plannedId != 0L) programs.markDone(st.plannedId, sid)
+                }
             }
             val now = _state.value
             if (now.finished && now.workoutId == st.workoutId) _state.value = now.copy(sessionId = id)

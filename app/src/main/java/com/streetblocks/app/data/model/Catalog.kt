@@ -205,6 +205,17 @@ object Catalog {
         else -> null
     }
 
+    /** Élastique par défaut : le milieu de gamme parmi les compatibles. */
+    fun pickBand(b: Block, bands: List<Band>): Long? {
+        val usage = bandUsageFor(b)
+        val compatible = bands.filter { usage == null || usage in it.usages }.ifEmpty { bands }
+        return compatible.getOrNull(compatible.size / 2)?.id
+    }
+
+    /** Complète les blocs « élastique » sans élastique choisi. */
+    fun withBands(blocks: List<Block>, bands: List<Band>): List<Block> =
+        blocks.map { b -> if (b.loadMode == LoadMode.BAND && b.bandId == null) b.copy(bandId = pickBand(b, bands)) else b }
+
     fun supportsBand(type: BlockType) = type == BlockType.PULLUP || type == BlockType.DIPS || type == BlockType.PUSHUP
 
     fun typeLabel(t: BlockType): String = when (t) {

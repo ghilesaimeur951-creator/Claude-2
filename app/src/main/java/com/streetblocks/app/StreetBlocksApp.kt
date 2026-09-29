@@ -3,6 +3,7 @@ package com.streetblocks.app
 import android.app.Application
 import com.streetblocks.app.audio.AudioCues
 import com.streetblocks.app.data.EquipmentRepository
+import com.streetblocks.app.data.ProgramRepository
 import com.streetblocks.app.data.SessionRepository
 import com.streetblocks.app.data.SettingsRepository
 import com.streetblocks.app.data.WorkoutRepository
@@ -38,8 +39,9 @@ class AppContainer(app: Application) {
     val equipment = EquipmentRepository(app, db.bandDao())
     val workouts = WorkoutRepository(db.workoutDao())
     val sessions = SessionRepository(db.sessionDao())
+    val programs = ProgramRepository(db, workouts) { equipment.bandsNow() }
     val audio = AudioCues(app)
-    val engine = WorkoutEngine(app, audio, workouts, sessions)
+    val engine = WorkoutEngine(app, audio, workouts, sessions, programs)
 
     init {
         audio.configure(settings.settings.value)
@@ -57,16 +59,25 @@ class AppContainer(app: Application) {
         return true
     }
 
+    /** Lance une séance planifiée d'un programme (avec sa propre configuration). */
+    suspend fun launchPlanned(plannedId: Long): Boolean {
+        val p = programs.getPlanned(plannedId) ?: return false
+        val w = com.streetblocks.app.data.model.Workout(
+            id = p.sourceWorkoutId ?: 0L, name = p.name, description = "", blocks = p.blocks,
+            createdAt = 0, updatedAt = 0, lastPerformedAt = null,
+        )
+        val bands = equipment.bandsNow()
+        val s = settings.settings.value
+        val steps = StepBuilder.build(w.blocks, bands, equipment.profile.value, s)
+        if (steps.none { it.kind != StepKind.END }) return false
+        kotlinx.coroutines.withContext(Dispatchers.Main) { engine.start(w, steps, s, bands, plannedId = p.id) }
+        return true
+    }
+
     /** Crée une séance à partir d'un modèle, en choisissant un élastique adapté si besoin. */
     suspend fun createFromTemplate(t: WorkoutTemplate): Long {
         val bands = equipment.bandsNow()
-        val blocks = t.blocks().map { b -> if (b.loadMode == LoadMode.BAND && b.bandId == null) b.copy(bandId = pickBand(b, bands)) else b }
+        val blocks = com.streetblocks.app.data.model.Catalog.withBands(t.blocks(), bands)
         return workouts.create(t.name, blocks, t.description)
-    }
-
-    private fun pickBand(b: Block, bands: List<Band>): Long? {
-        val usage = com.streetblocks.app.data.model.Catalog.bandUsageFor(b)
-        val compatible = bands.filter { usage == null || usage in it.usages }.ifEmpty { bands }
-        return compatible.getOrNull(compatible.size / 2)?.id
     }
 }

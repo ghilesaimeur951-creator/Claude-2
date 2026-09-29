@@ -81,6 +81,7 @@ class SessionRepository(private val dao: SessionDao) {
         SessionEntity(
             workoutId = r.workoutId, workoutName = r.workoutName, startedAt = r.startedAt,
             durationSec = r.durationSec, completed = r.completed, logsJson = AppJson.encodeToString(r.logs),
+            plannedId = r.plannedId,
         )
     )
 
@@ -92,6 +93,7 @@ class SessionRepository(private val dao: SessionDao) {
         id = id, workoutId = workoutId, workoutName = workoutName, startedAt = startedAt,
         durationSec = durationSec, completed = completed,
         logs = runCatching { AppJson.decodeFromString<List<ExerciseLog>>(logsJson) }.getOrDefault(emptyList()),
+        plannedId = plannedId,
     )
 }
 

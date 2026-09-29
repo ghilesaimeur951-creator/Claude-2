@@ -88,8 +88,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BuilderScreen(workoutId: Long, onBack: () -> Unit, onOpenSession: () -> Unit) {
-    val vm = containerViewModel(key = "builder-$workoutId") { BuilderViewModel(it, workoutId) }
+fun BuilderScreen(workoutId: Long, onBack: () -> Unit, onOpenSession: () -> Unit, planned: Boolean = false) {
+    val vm = containerViewModel(key = "builder-$planned-$workoutId") { BuilderViewModel(it, workoutId, planned) }
     val workout by vm.workout.collectAsStateWithLifecycle()
     val bands by vm.bands.collectAsStateWithLifecycle()
     val profile by vm.profile.collectAsStateWithLifecycle()
@@ -101,6 +101,16 @@ fun BuilderScreen(workoutId: Long, onBack: () -> Unit, onOpenSession: () -> Unit
     var showLibrary by remember { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
+    val plannedInfo by vm.plannedInfo.collectAsStateWithLifecycle()
+    var askScope by remember { mutableStateOf(false) }
+
+    // Séance planifiée modifiée + séances suivantes : demander la portée de la modification
+    fun leave() {
+        val info = plannedInfo
+        if (planned && info != null && info.followingCount > 0 && vm.plannedChanged()) askScope = true
+        else { vm.saveNow(); onBack() }
+    }
+    androidx.activity.compose.BackHandler(onBack = ::leave)
 
     val listState = rememberLazyListState()
     val reorderState = rememberReorderableLazyListState(listState) { from, to ->
@@ -111,15 +121,16 @@ fun BuilderScreen(workoutId: Long, onBack: () -> Unit, onOpenSession: () -> Unit
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Créateur de séance") },
-                navigationIcon = { IconButton(onClick = { vm.saveNow(); onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour") } },
+                title = { Text(if (planned) "Séance planifiée" else "Créateur de séance") },
+                navigationIcon = { IconButton(onClick = ::leave) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour") } },
                 actions = {
                     IconButton(onClick = {
                         val w = workout ?: return@IconButton
                         vm.saveNow()
                         scope.launch {
                             kotlinx.coroutines.delay(150)
-                            if (vm.c.launchSession(w.id)) onOpenSession()
+                            val ok = if (planned) vm.c.launchPlanned(w.id) else vm.c.launchSession(w.id)
+                            if (ok) onOpenSession()
                             else Toast.makeText(ctx, "Ajoute au moins un exercice", Toast.LENGTH_SHORT).show()
                         }
                     }) { Icon(Icons.Filled.PlayArrow, "Démarrer", tint = Lime) }
@@ -150,6 +161,16 @@ fun BuilderScreen(workoutId: Long, onBack: () -> Unit, onOpenSession: () -> Unit
             return@Scaffold
         }
         Column(Modifier.padding(pad).fillMaxSize()) {
+            plannedInfo?.let { info ->
+                Text(
+                    if (info.done) "${com.streetblocks.app.data.model.Planning.dateLong(info.date)} · séance réalisée (lecture seule, historique préservé)"
+                    else "${com.streetblocks.app.data.model.Planning.dateLong(info.date)} · configuration propre à cette date : la séance d'origine n'est pas modifiée.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Black,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                        .background(Lime, androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).padding(10.dp),
+                )
+            }
             OutlinedTextField(
                 value = w.name,
                 onValueChange = vm::rename,
@@ -208,6 +229,18 @@ fun BuilderScreen(workoutId: Long, onBack: () -> Unit, onOpenSession: () -> Unit
                 }
             }
         }
+    }
+
+    if (askScope) {
+        com.streetblocks.app.ui.programs.ScopeDialog(
+            title = "Appliquer les modifications",
+            followingCount = plannedInfo?.followingCount ?: 0,
+            onPick = { scopeChoice ->
+                askScope = false
+                vm.finish(propagate = scopeChoice == com.streetblocks.app.data.model.EditScope.FOLLOWING) { onBack() }
+            },
+            onDismiss = { askScope = false },
+        )
     }
 
     if (showLibrary) {

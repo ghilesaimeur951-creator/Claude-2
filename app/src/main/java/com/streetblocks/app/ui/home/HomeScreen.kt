@@ -115,8 +115,10 @@ fun HomeScreen(
     onEdit: (Long) -> Unit,
     onTemplates: () -> Unit,
     onOpenSession: () -> Unit,
+    onOpenProgram: (Long) -> Unit = {},
 ) {
     val vm = containerViewModel { HomeViewModel(it) }
+    val planned by vm.c.programs.allPlanned.collectAsStateWithLifecycle(emptyList())
     val cards by vm.cards.collectAsStateWithLifecycle()
     val sessions by vm.sessions.collectAsStateWithLifecycle()
     val engine by vm.c.engine.state.collectAsState()
@@ -172,6 +174,25 @@ fun HomeScreen(
             }
         }
 
+        val today = java.time.LocalDate.now()
+        val todays = planned.filter { it.date == today && it.status == com.streetblocks.app.data.model.PlanStatus.PLANNED }
+        val upcoming = planned.filter { it.status == com.streetblocks.app.data.model.PlanStatus.PLANNED && it.date.isAfter(today) }
+            .minByOrNull { it.date.toEpochDay() * 2000 + (it.timeMinutes ?: 0) }
+        if (todays.isNotEmpty() || upcoming != null) {
+            item {
+                ProgramTodayCard(
+                    todays = todays, upcoming = upcoming,
+                    onStart = { id ->
+                        scope.launch {
+                            if (vm.c.launchPlanned(id)) onOpenSession()
+                            else Toast.makeText(ctx, "Séance vide : ajoute des exercices", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onOpenProgram = onOpenProgram,
+                )
+            }
+        }
+
         item {
             HeroCard(featured, onStart = { featured?.let { start(it.workout.id) } }, onCreate = onCreate)
         }
@@ -220,6 +241,42 @@ fun HomeScreen(
             confirmButton = { TextButton(onClick = { vm.delete(w.id); confirmDelete = null }) { Text("Supprimer") } },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Annuler") } },
         )
+    }
+}
+
+@Composable
+private fun ProgramTodayCard(
+    todays: List<com.streetblocks.app.data.model.PlannedSession>,
+    upcoming: com.streetblocks.app.data.model.PlannedSession?,
+    onStart: (Long) -> Unit,
+    onOpenProgram: (Long) -> Unit,
+) {
+    val P = com.streetblocks.app.data.model.Planning
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(if (todays.isNotEmpty()) "AUJOURD'HUI DANS TON PROGRAMME" else "PROCHAINE SÉANCE PLANIFIÉE", color = Lime, style = MaterialTheme.typography.labelLarge)
+            (todays.ifEmpty { listOfNotNull(upcoming) }).forEach { s ->
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).clickable { onOpenProgram(s.programId) }) {
+                        Text(s.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(P.relative(s.date), P.timeLabel(s.timeMinutes), "${s.blocks.count { it.isExercise }} exercices").joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (todays.isNotEmpty()) {
+                        FilledIconButton(
+                            onClick = { onStart(s.id) },
+                            modifier = Modifier.size(52.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = Lime, contentColor = Color.Black),
+                        ) { Icon(Icons.Filled.PlayArrow, "Démarrer", Modifier.size(30.dp)) }
+                    }
+                }
+            }
+        }
     }
 }
 

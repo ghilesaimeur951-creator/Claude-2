@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -36,6 +37,9 @@ import com.streetblocks.app.ui.equipment.EquipmentScreen
 import com.streetblocks.app.ui.history.HistoryScreen
 import com.streetblocks.app.ui.home.HomeScreen
 import com.streetblocks.app.ui.home.TemplatesScreen
+import com.streetblocks.app.ui.programs.ProgramDetailScreen
+import com.streetblocks.app.ui.programs.ProgramWizardScreen
+import com.streetblocks.app.ui.programs.ProgramsScreen
 import com.streetblocks.app.ui.session.SessionScreen
 import com.streetblocks.app.ui.settings.SettingsScreen
 
@@ -43,6 +47,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab("home", "Accueil", Icons.Filled.Home),
+    Tab("programs", "Programmes", Icons.Filled.CalendarMonth),
     Tab("equipment", "Matériel", Icons.Filled.FitnessCenter),
     Tab("history", "Historique", Icons.Filled.History),
     Tab("settings", "Réglages", Icons.Filled.Settings),
@@ -105,6 +110,41 @@ fun AppRoot(openSessionRequest: Boolean, onOpenSessionHandled: () -> Unit) {
                     onEdit = { id -> nav.navigate("builder/$id") },
                     onTemplates = { nav.navigate("templates") },
                     onOpenSession = { nav.navigate("session") { launchSingleTop = true } },
+                    onOpenProgram = { id -> nav.navigate("program/$id") },
+                )
+            }
+            composable("programs") {
+                ProgramsScreen(
+                    onCreate = { nav.navigate("program/new") },
+                    onOpen = { id -> nav.navigate("program/$id") },
+                )
+            }
+            composable("program/new") {
+                ProgramWizardScreen(
+                    onBack = { nav.popBackStack() },
+                    onCreated = { id -> nav.navigate("program/$id") { popUpTo("program/new") { inclusive = true } } },
+                )
+            }
+            composable(
+                "program/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+            ) { e ->
+                ProgramDetailScreen(
+                    programId = e.arguments?.getLong("id") ?: 0L,
+                    onBack = { nav.popBackStack() },
+                    onEditPlanned = { pid -> nav.navigate("planned/$pid") },
+                    onOpenSession = { nav.navigate("session") { launchSingleTop = true } },
+                )
+            }
+            composable(
+                "planned/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+            ) { e ->
+                BuilderScreen(
+                    workoutId = e.arguments?.getLong("id") ?: 0L,
+                    onBack = { nav.popBackStack() },
+                    onOpenSession = { nav.navigate("session") { launchSingleTop = true } },
+                    planned = true,
                 )
             }
             composable("equipment") { EquipmentScreen() }

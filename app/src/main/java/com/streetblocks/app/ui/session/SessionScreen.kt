@@ -52,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -306,7 +307,8 @@ private fun FinishedView(st: EngineState, onDone: () -> Unit) {
     val profile by c.equipment.profile.collectAsStateWithLifecycle()
     val bands by c.equipment.bands.collectAsStateWithLifecycle(emptyList())
     val logs = remember(st.startedAt) { mutableStateListOf<ExerciseLog>().also { it.addAll(st.logs) } }
-    val applied = remember(st.startedAt) { mutableStateListOf<String>() }
+    val applied = remember(st.startedAt) { mutableStateMapOf<String, String>() }
+    val isPlanned = st.plannedId != 0L
 
     fun persist() = c.engine.updateLogs(logs.toList())
 
@@ -356,15 +358,21 @@ private fun FinishedView(st: EngineState, onDone: () -> Unit) {
                     }
                     Text("Aujourd'hui : ${advice.today}", fontWeight = FontWeight.Bold)
                     Text("Prochaine séance : ${advice.next}", color = Lime)
-                    if (advice.options.isNotEmpty() && st.workoutId != 0L) {
+                    if (advice.options.isNotEmpty() && (isPlanned || st.workoutId != 0L)) {
                         if (log.blockId in applied) {
-                            Text("✓ Progression appliquée à la séance", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                            Text(applied.getValue(log.blockId), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                         } else {
                             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 advice.options.forEach { opt ->
                                     OutlinedButton(onClick = {
                                         scope.launch {
-                                            if (c.workouts.updateBlock(st.workoutId, log.blockId, opt.apply)) applied += log.blockId
+                                            if (isPlanned) {
+                                                // Programme : uniquement les prochaines séances de ce créneau, jamais la séance d'origine
+                                                val n = c.programs.applyProgression(st.plannedId, log.key, opt.apply)
+                                                applied[log.blockId] = if (n > 0) "✓ Appliquée aux $n prochaines séances de ce créneau" else "Aucune séance suivante à ajuster dans le programme"
+                                            } else if (c.workouts.updateBlock(st.workoutId, log.blockId, opt.apply)) {
+                                                applied[log.blockId] = "✓ Progression appliquée à la séance"
+                                            }
                                         }
                                     }, modifier = Modifier.weight(1f)) { Text(opt.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                                 }
