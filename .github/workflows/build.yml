@@ -32,12 +32,14 @@ jobs:
         run: |
           grep -o '"createSql": "[^"]*"' app/schemas/com.streetblocks.app.data.db.AppDatabase/2.json || true
 
-      - name: Rapport de tests
-        if: failure()
+      - name: Rapport de tests et schéma
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: app/build/reports/tests/
+          path: |
+            app/build/test-results/testDebugUnitTest/*.xml
+            app/schemas/
 
       - name: Compiler l'APK (debug + release)
         run: |
