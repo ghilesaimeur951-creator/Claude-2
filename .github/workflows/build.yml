@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, street-workout ]
   pull_request:
   workflow_dispatch:
 
@@ -40,10 +40,11 @@ jobs:
           path: out/*.apk
 
       - name: Publier la release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
+          tag_name: street-blocks-v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
           name: Street Blocks v1.0.${{ github.run_number }}
           body: |
             APK Android prêt à installer.
