@@ -94,4 +94,6 @@ dependencies {
     implementation("sh.calvin.reorderable:reorderable:2.4.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    testImplementation("junit:junit:4.13.2")
 }
